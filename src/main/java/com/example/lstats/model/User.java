@@ -42,4 +42,7 @@ public class User {
     @Email(message = "invalid email")
     private String email;
 
+    @Column(nullable =false,length=100)
+    private String collegename;
+
 }

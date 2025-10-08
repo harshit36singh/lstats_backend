@@ -34,19 +34,20 @@ public class AuthService {
         }
 
         String hashedPassword = passwordEncoder.encode(req.getPassword());
-        User user = User.builder().username(req.getUsername()).password(hashedPassword).email(req.getEmail()).build();
+        User user = User.builder().username(req.getUsername()).password(hashedPassword).email(req.getEmail())
+                .collegename(req.getCollegename()).build();
         userRepository.save(user);
         return new AuthResponse("ascac", null);
 
     }
 
-    public AuthResponse login(LoginRequest req){
-        User user=userRepository.findByUsername(req.getUsername()).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"User Not found"));
-        if(!passwordEncoder.matches(req.getPassword(),user.getPassword())){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Invalud credentials");}
-            String token=Jwtutil.generateToken(user.getUsername());
-            return new AuthResponse("Login Successful", token);
+    public AuthResponse login(LoginRequest req) {
+        User user = userRepository.findByUsername(req.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User Not found"));
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalud credentials");
         }
+        String token = Jwtutil.generateToken(user.getUsername());
+        return new AuthResponse("Login Successful", token);
     }
-
-
+}
