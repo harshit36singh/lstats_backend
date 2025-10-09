@@ -26,9 +26,12 @@ public class collegename {
                     .map(s -> s.replace("\"", "").trim()) // remove quotes and trim
                     .filter(s -> !s.isEmpty())
                     .collect(Collectors.toList());
+            
+        System.out.println("✅ Colleges loaded: " + colleges.size());
+        System.out.println(colleges.subList(0, Math.min(colleges.size(), 10))); 
         } catch (Exception e) {
             e.printStackTrace();
-            colleges = List.of("other");
+            colleges = List.of("other than college");
         }
     }
 
