@@ -61,7 +61,7 @@ public class leaderboard {
     }
 
     @GetMapping("/global")
-    public List<Map<String,Object>> globalleaberboard(@RequestParam String collegename){
+    public List<Map<String,Object>> globalleaberboard(@RequestParam(required = false) String collegename){
       List<Map<String,Object>> list=new ArrayList<>();
       leadercache.forEach((username,solved)->{
         Map<String,Object> entry=new HashMap<>();
