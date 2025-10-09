@@ -89,7 +89,7 @@ public class leaderboard {
       leadercache.forEach((username,entry)->{
         Map<String,Object> e=new HashMap<>();
         e.put("username",username);
-        e.put("solved",entry.img);
+        e.put("solved",entry.gettotalsolved());
         e.put("avatar", entry.img != null ? entry.img : "");
         e.put("points",entry.getpoints());
         list.add(e);
