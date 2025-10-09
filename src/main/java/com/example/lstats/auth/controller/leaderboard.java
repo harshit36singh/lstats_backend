@@ -19,6 +19,27 @@ import org.springframework.web.client.RestTemplate;
 import com.example.lstats.repository.UserRepository;
 import com.example.lstats.model.User;
 
+class Leader{
+     int totalSolved;
+    String img;
+    int e;
+    int m;
+    int h;
+
+    Leader(int e, int m, int h, String img) {
+       this.e = e;
+        this.m = m;
+        this.h = h;
+        this.img = img;
+    }
+    int getpoints(){
+        return e*1+m*3+h*5;
+    }
+    int gettotalsolved(){
+        return e+m+h;
+    }
+}
+
 @RestController
 @RequestMapping("/leaderboard")
 @CrossOrigin(origins = "*")
@@ -27,7 +48,7 @@ public class leaderboard {
     private UserRepository userRepository;
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final Map<String, Integer> leadercache = new ConcurrentHashMap<>();
+    private final Map<String, Leader> leadercache = new ConcurrentHashMap<>();
 
     @Scheduled(fixedRate = 3600000)
     private void refreshleaderboard() {
@@ -37,14 +58,16 @@ public class leaderboard {
                 String url = "https://lstats.onrender.com/leetcode/" + user.getUsername();
                 Map<String, Object> res = restTemplate.getForObject(url, Map.class);
                 if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
-                        && res.containsKey("hardSolved")) {
+                        && res.containsKey("hardSolved") && res.containsKey("profilePic")) {
                             Object e=res.get("easySolved");
                             Object m=res.get("mediumSolved");
                             Object h=res.get("hardSolved");
+                            Object im=res.get("profilePic");
                             int ea=(e instanceof Number)?((Number)e).intValue():Integer.parseInt(e.toString());
                             int me=(m instanceof Number)?((Number)m).intValue():Integer.parseInt(m.toString());
                             int ha=(h instanceof Number)?((Number)h).intValue():Integer.parseInt(h.toString());
-                            leadercache.put(user.getUsername(), ea+me+ha);
+                            String image=(im instanceof String)?((String) im):"";
+                            leadercache.put(user.getUsername(), new Leader(ea, me, ha, image));
 
                 }
             } catch (Exception e) {
@@ -63,13 +86,15 @@ public class leaderboard {
     @GetMapping("/global")
     public List<Map<String,Object>> globalleaberboard(@RequestParam(required = false) String collegename){
       List<Map<String,Object>> list=new ArrayList<>();
-      leadercache.forEach((username,solved)->{
-        Map<String,Object> entry=new HashMap<>();
-        entry.put("username",username);
-        entry.put("solved", solved);
-        list.add(entry);
+      leadercache.forEach((username,entry)->{
+        Map<String,Object> e=new HashMap<>();
+        e.put("username",username);
+        e.put("solved",entry.img);
+        e.put("avatar", entry.img != null ? entry.img : "");
+        e.put("points",entry.getpoints());
+        list.add(e);
       });
-      list.sort((a,b)->((Integer) b.get("solved"))-((Integer) a.get("solved")));
+      list.sort((a,b)->((Integer) b.get("points"))-((Integer) a.get("points")));
       for (int i = 0; i < list.size(); i++) {
         list.get(i).put("rank",i+1);
       }
