@@ -34,7 +34,7 @@ public class leaderboard {
         List<User> users = userRepository.findAll();
         for (User user : users) {
             try {
-                String url = "https://lstatsbackend-production.up.railway.app/leetcode" + user.getUsername();
+                String url = "https://lstatsbackend-production.up.railway.app/leetcode/" + user.getUsername();
                 Map<String, Object> res = restTemplate.getForObject(url, Map.class);
                 if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
                         && res.containsKey("hardSolved")) {
