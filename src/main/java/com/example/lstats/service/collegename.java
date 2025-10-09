@@ -2,13 +2,13 @@ package com.example.lstats.service;
 
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
-import io.jsonwebtoken.io.IOException;
 import jakarta.annotation.PostConstruct;
 
 @Service
@@ -21,12 +21,14 @@ public class collegename {
         try {
 
             ClassPathResource resource = new ClassPathResource("college.txt");
-            colleges = Files.readAllLines(resource.getFile().toPath())
-                    .stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toList());
-
+            String content = Files.readString(resource.getFile().toPath());
+            colleges = Arrays.stream(content.split(","))
+                     .map(s -> s.replace("\"", "").trim()) // remove quotes and trim
+                     .filter(s -> !s.isEmpty())
+                     .collect(Collectors.toList());
         } catch (Exception e) {
             e.printStackTrace();
-            colleges = new ArrayList<>();
+            colleges = List.of("other");
         }
     }
 
