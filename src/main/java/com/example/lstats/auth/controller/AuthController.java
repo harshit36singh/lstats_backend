@@ -1,14 +1,18 @@
 package com.example.lstats.auth.controller;
 
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.lstats.auth.AuthService;
 import com.example.lstats.auth.dto.AuthResponse;
 import com.example.lstats.auth.dto.LoginRequest;
 import com.example.lstats.auth.dto.RegisterRequest;
+import com.example.lstats.service.collegename;
 
 import jakarta.validation.Valid;
+
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,8 +28,10 @@ public class AuthController {
 
     
     private final AuthService authService;
-    public AuthController(AuthService authService){
+    private final collegename collegename;
+     public AuthController(AuthService authService,collegename collegename){
         this.authService=authService;
+        this.collegename=collegename;
     }
     
     @PostMapping("/register")
@@ -40,10 +46,11 @@ public class AuthController {
         AuthResponse res=authService.login(req);
         return ResponseEntity.ok(res);
     }
-    @GetMapping("/test")
-public ResponseEntity<String> test() {
-    return ResponseEntity.ok("Auth endpoint is accessible");
-}
+   @GetMapping("/collges")
+   public ResponseEntity<List<String>> getcolleges(@RequestParam(required=false) String query){
+    List<String> result=collegename.getcolleges(query);
+return ResponseEntity.ok(result);
+   }
     
 
 }
