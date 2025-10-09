@@ -23,9 +23,9 @@ public class collegename {
             ClassPathResource resource = new ClassPathResource("college.txt");
             String content = Files.readString(resource.getFile().toPath());
             colleges = Arrays.stream(content.split(","))
-                     .map(s -> s.replace("\"", "").trim()) // remove quotes and trim
-                     .filter(s -> !s.isEmpty())
-                     .collect(Collectors.toList());
+                    .map(s -> s.replace("\"", "").trim()) // remove quotes and trim
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
         } catch (Exception e) {
             e.printStackTrace();
             colleges = List.of("other");

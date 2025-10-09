@@ -1,4 +1,4 @@
-"A. D. Patel Institute of Technology",
+""A. D. Patel Institute of Technology",
         "A.K.G. Engineering College",
         "A.R.J. College of Engineering and Technology",
         "ABES Engineering College",
@@ -1409,5 +1409,4 @@
         "SNS College of Technology",
         "RVS College of engineering and technology",
         "Nehru Institute OF Engineering & Technology",
-        "other"
-  
+        "other""
