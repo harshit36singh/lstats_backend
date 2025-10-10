@@ -124,10 +124,34 @@ public class leaderboard {
             list.add(e);
 
         });
-        list.sort((a,b)->((Integer) b.get("points")-(Integer) a.get("points")));
+        list.sort((a, b) -> ((Integer) b.get("points") - (Integer) a.get("points")));
         for (int i = 0; i < list.size(); i++) {
-            list.get(i).put("rank", i+1);
+            list.get(i).put("rank", i + 1);
         }
+        return list;
+    }
+
+    @GetMapping("/college")
+    public List<Map<String, Object>> getstudentbycollege(@RequestParam String college) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        leadercache.forEach((username, e) -> {
+            if (e.clgname != null && e.clgname.equalsIgnoreCase(college)) {
+                Map<String, Object> et = new HashMap<>();
+                et.put("username", username);
+                et.put("solved", e.gettotalsolved());
+                et.put("avatar", e.img != null ? e.img : "");
+                et.put("points", e.getpoints());
+                et.put("collgename", e.clgname);
+                list.add(et);
+            }
+
+        });
+        list.sort((a, b) -> (Integer) b.get("points") - (Integer) a.get("points"));
+
+        for (int i = 0; i < list.size(); i++) {
+            list.get(i).put("rank", i + 1);
+        }
+
         return list;
     }
 
