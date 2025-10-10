@@ -1,12 +1,8 @@
 package com.example.lstats.service;
 
-import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
