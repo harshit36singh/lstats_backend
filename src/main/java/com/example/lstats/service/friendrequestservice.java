@@ -22,7 +22,7 @@ public class friendrequestservice {
     }
 
     public friendmodel sendreq(Long senderid, Long recieverid) {
-        User sender = userrepository.findById(recieverid)
+        User sender = userrepository.findById(senderid)
                 .orElseThrow(() -> new RuntimeException("Sender not found."));
         User reciever = userrepository.findById(recieverid)
                 .orElseThrow(() -> new RuntimeException("Receiver not found."));
