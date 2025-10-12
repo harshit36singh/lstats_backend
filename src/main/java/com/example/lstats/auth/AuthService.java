@@ -36,7 +36,7 @@ public class AuthService {
         User user = User.builder().username(req.getUsername()).password(hashedPassword).email(req.getEmail())
                 .collegename(req.getCollegename()).build();
         userRepository.save(user);
-        return new AuthResponse("ascac", null);
+        return new AuthResponse("ascac", null,user);
 
     }
 
@@ -47,6 +47,6 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalud credentials");
         }
         String token = Jwtutil.generateToken(user.getUsername());
-        return new AuthResponse("Login Successful", token);
+        return new AuthResponse("Login Successful", token,user);
     }
 }
