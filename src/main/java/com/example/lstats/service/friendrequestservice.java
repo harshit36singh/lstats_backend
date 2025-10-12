@@ -1,5 +1,6 @@
 package com.example.lstats.service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -57,4 +58,26 @@ public class friendrequestservice {
         return Friendrequestrepository.findByReceiver(user).stream()
                 .filter(r -> r.getStatus() == friendmodel.Status.PENDING).toList();
     }
-}
+
+    public List<User> getFriends(Long userid) {
+    User user = userrepository.findById(userid)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+    
+    List<User> sentFriends = Friendrequestrepository.findBySender(user).stream()
+            .filter(f -> f.getStatus() == friendmodel.Status.ACCEPTED)
+            .map(friendmodel::getReceiver)
+            .toList();
+
+    List<User> receivedFriends = Friendrequestrepository.findByReceiver(user).stream()
+            .filter(f -> f.getStatus() == friendmodel.Status.ACCEPTED)
+            .map(friendmodel::getSender)
+            .toList();
+
+    List<User> allFriends = new ArrayList<>();
+    allFriends.addAll(sentFriends);
+    allFriends.addAll(receivedFriends);
+
+    return allFriends;
+}}
+

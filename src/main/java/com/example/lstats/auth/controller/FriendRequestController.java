@@ -15,38 +15,39 @@ import com.example.lstats.service.friendrequestservice;
 @RestController
 @RequestMapping("/friends")
 public class FriendRequestController {
-    private  final friendrequestservice friendrequestService;
+    private final friendrequestservice friendrequestService;
 
-    FriendRequestController(friendrequestservice f){
-        this.friendrequestService=f;
+    FriendRequestController(friendrequestservice f) {
+        this.friendrequestService = f;
 
     }
-    
+
     @PostMapping("/send")
-    public friendmodel sendreq(@RequestParam Long senderid,@RequestParam Long receiverid){
+    public friendmodel sendreq(@RequestParam Long senderid, @RequestParam Long receiverid) {
         return friendrequestService.sendreq(senderid, receiverid);
-        
+
     }
-    
 
     @PostMapping("/accept/{requestid}")
-    public friendmodel acceptreq(@PathVariable  Long requestid){
+    public friendmodel acceptreq(@PathVariable Long requestid) {
         return friendrequestService.acceptreq(requestid);
     }
 
     @PostMapping("/reject/{requestid}")
-    public friendmodel rejectreq(@PathVariable Long requestid){
+    public friendmodel rejectreq(@PathVariable Long requestid) {
         return friendrequestService.rejectreq(requestid);
 
     }
 
-
     @GetMapping("/pending/{userid}")
-    public List<friendmodel> getpendingreq(@PathVariable Long userid){
+    public List<friendmodel> getpendingreq(@PathVariable Long userid) {
         return friendrequestService.getpendingreq(userid);
 
     }
 
-
+    @GetMapping("/list/{userid}")
+    public List<com.example.lstats.model.User> getFriends(@PathVariable Long userid) {
+        return friendrequestService.getFriends(userid);
+    }
 
 }
