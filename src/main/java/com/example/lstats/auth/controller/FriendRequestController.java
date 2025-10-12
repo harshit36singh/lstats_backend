@@ -30,12 +30,12 @@ public class FriendRequestController {
     
 
     @PostMapping("/accept/{requestid}")
-    public friendmodel acceptreq(@RequestParam Long requestid){
+    public friendmodel acceptreq(@PathVariable  Long requestid){
         return friendrequestService.acceptreq(requestid);
     }
 
     @PostMapping("/reject/{requestid}")
-    public friendmodel rejectreq(@RequestParam Long requestid){
+    public friendmodel rejectreq(@PathVariable Long requestid){
         return friendrequestService.rejectreq(requestid);
 
     }
