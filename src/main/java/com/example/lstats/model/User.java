@@ -1,5 +1,10 @@
 package com.example.lstats.model;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import org.hibernate.annotations.ManyToAny;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
@@ -7,6 +12,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -44,5 +50,10 @@ public class User {
 
     @Column(nullable =false,length=100)
     private String collegename;
+
+
+
+    @ManyToMany(mappedBy = "members")
+    private Set<Group> groups=new HashSet<>();
 
 }
