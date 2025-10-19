@@ -8,6 +8,6 @@ import com.example.lstats.model.GroupInvite;
 import com.example.lstats.model.User;
 
 public interface GroupinviteRepo extends JpaRepository<GroupInvite,Long> {
-    List<GroupInvite> findByReceiverandSender(User user,GroupInvite.InviteStatus status);
+    List<GroupInvite> findByReceiverAndSender(User user,GroupInvite.InviteStatus status);
     
 }
