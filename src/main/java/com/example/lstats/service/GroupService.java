@@ -69,6 +69,6 @@ public class GroupService {
 
     public List<GroupInvite> getpendinginvites(String name){
         User user=userrepo.findByUsername(name).orElseThrow(()->new RuntimeException("Cant find user"));
-        return inviterepo.findByReceiverandSender(user, GroupInvite.InviteStatus.PENDING);
+        return inviterepo.findByReceiverAndSender(user, GroupInvite.InviteStatus.PENDING);
     }
 }
