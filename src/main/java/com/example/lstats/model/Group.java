@@ -1,5 +1,6 @@
 package com.example.lstats.model;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
@@ -35,7 +36,7 @@ public class Group {
     @JoinTable(name = "group_members", joinColumns = @JoinColumn(name = "group_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> members = new HashSet<>();
 
-    private Date createdAt=new Date();
+    private LocalDateTime createdAt = LocalDateTime.now();
     
 
 }
