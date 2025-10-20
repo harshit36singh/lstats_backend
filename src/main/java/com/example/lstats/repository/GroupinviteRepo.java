@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.example.lstats.model.GroupInvite;
 import com.example.lstats.model.User;
 
-public interface GroupinviteRepo extends JpaRepository<GroupInvite, Long> {
-    List<GroupInvite> findByReceiverAndStatus(User receiver, GroupInvite.InviteStatus status);
+public interface GroupinviteRepo extends JpaRepository<GroupInvite,Long> {
+    List<GroupInvite> findByReceiverAndStatus(User receiver,GroupInvite.InviteStatus status);
+    
 }
-
