@@ -61,7 +61,7 @@ public class GroupService {
         invite.setStatus(GroupInvite.InviteStatus.ACCEPTED);
         inviterepo.save(invite);
 
-        Group group=new Group();
+        Group group=invite.getGroup();
         group.getMembers().add(invite.getReceiver());
         grouprep.save(group);
     }
@@ -69,6 +69,6 @@ public class GroupService {
 
     public List<GroupInvite> getpendinginvites(String name){
         User user=userrepo.findByUsername(name).orElseThrow(()->new RuntimeException("Cant find user"));
-        return inviterepo.findByReceiverAndSender(user, GroupInvite.InviteStatus.PENDING);
+        return inviterepo.findByReceiverAndStatus(user, GroupInvite.InviteStatus.PENDING);
     }
 }
