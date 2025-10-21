@@ -39,7 +39,9 @@ public class GroupService {
 
     public List<Group> getusergroups(String name){
         User user=userrepo.findByUsername(name).orElseThrow(()->new RuntimeException("Cant find this user"));
-        return grouprep.findByMembersContains(user);
+        List<Group> groups=grouprep.findByMembersContains(user);
+        groups.forEach(g->g.getMembers().size());
+        return groups;
 
     }
 
