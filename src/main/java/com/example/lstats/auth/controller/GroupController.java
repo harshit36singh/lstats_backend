@@ -49,7 +49,7 @@ public class GroupController {
         return ResponseEntity.ok("Accepted");
     }
 
-    @PostMapping("/invites")
+    @GetMapping("/invites")
     public List<GroupInvite> getpendinginvite(@RequestParam String username){
         return groupservice.getpendinginvites(username);
     }
