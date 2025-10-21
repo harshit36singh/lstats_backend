@@ -17,7 +17,7 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "user-groups")
+@Table(name = "user_groups")
 public class Group {
 
     @Id
