@@ -33,13 +33,13 @@ public class Group {
 
     @ManyToOne
     @JoinColumn(name = "created_by")
-    @JsonIgnoreProperties({"groups","password"})
+    @JsonIgnoreProperties({"groups", "password", "email", "collegename"})
     private User createdby;
 
     @ManyToMany
     @JoinTable(name = "group_members", joinColumns = @JoinColumn(name = "group_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
     @JsonManagedReference
-    @JsonIgnoreProperties({"groups","password"})
+    @JsonIgnoreProperties({"groups", "password", "email", "collegename"})
     private Set<User> members = new HashSet<>();
 
     private LocalDateTime createdAt = LocalDateTime.now();
