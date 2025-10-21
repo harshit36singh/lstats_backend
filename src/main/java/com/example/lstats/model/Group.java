@@ -21,6 +21,7 @@ import lombok.Data;
 @Data
 @Entity
 @Table(name = "user_groups")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Group {
 
     @Id
