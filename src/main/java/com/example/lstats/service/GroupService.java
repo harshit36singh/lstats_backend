@@ -1,9 +1,11 @@
 package com.example.lstats.service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import com.example.lstats.auth.dto.GroupDTO;
 import com.example.lstats.model.Group;
 import com.example.lstats.model.GroupInvite;
 import com.example.lstats.model.User;
@@ -37,13 +39,16 @@ public class GroupService {
 
     }
 
-    public List<Group> getusergroups(String name){
-        User user=userrepo.findByUsername(name).orElseThrow(()->new RuntimeException("Cant find this user"));
-        List<Group> groups=grouprep.findByMembersContains(user);
-        groups.forEach(g->g.getMembers().size());
-        return groups;
+    public List<GroupDTO> getusergroups(String name) {
+    User user = userrepo.findByUsername(name)
+            .orElseThrow(() -> new RuntimeException("Cant find this user"));
 
-    }
+    List<Group> groups = grouprep.findByMembersContains(user);
+    return groups.stream()
+            .map(GroupDTO::fromEntity)
+            .collect(Collectors.toList());
+}
+
 
     public GroupInvite sendInvite(Long groupid,String senderid,String receiverid){
         Group group=grouprep.findById(groupid).orElseThrow(()->new RuntimeException("Cant find the group"));

@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.example.lstats.auth.dto.GroupDTO;
 import com.example.lstats.model.Group;
 import com.example.lstats.model.GroupInvite;
 import com.example.lstats.service.GroupService;
@@ -30,7 +32,7 @@ public class GroupController {
     }
     
     @GetMapping("/my")
-    public List<Group> getmygroup(@RequestParam String name){
+    public List<GroupDTO> getmygroup(@RequestParam String name){
         return groupservice.getusergroups(name);
 
     }
