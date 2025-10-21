@@ -5,6 +5,7 @@ import java.util.Set;
 
 import org.hibernate.annotations.ManyToAny;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
@@ -54,6 +55,7 @@ public class User {
 
 
     @ManyToMany(mappedBy = "members")
+    @JsonBackReference
     private Set<Group> groups=new HashSet<>();
 
 }
