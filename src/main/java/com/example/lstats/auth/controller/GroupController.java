@@ -1,6 +1,8 @@
 package com.example.lstats.auth.controller;
 
 import java.util.List;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,8 +42,9 @@ public class GroupController {
     }
 
     @PostMapping("invite/{inviteid}/accept")
-    public void acceptinvite(@PathVariable Long inviteid){
+    public ResponseEntity<String> acceptinvite(@PathVariable Long inviteid){
         groupservice.acceptinvite(inviteid);
+        return ResponseEntity.ok("Accepted");
     }
 
     @PostMapping("/invites")
