@@ -1,7 +1,6 @@
 package com.example.lstats.model;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -18,7 +17,7 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "`groups`")
+@Table(name = "user-groups")
 public class Group {
 
     @Id
