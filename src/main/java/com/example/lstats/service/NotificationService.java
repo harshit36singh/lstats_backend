@@ -28,7 +28,7 @@ public class NotificationService {
 
     public List<Notification> getunreadnotification(String username) {
         User user = userRepository.findByUsername(username).orElseThrow(() -> new RuntimeException("nouser found"));
-        return notificationRepository.findReceiverAndReadStatusFalse(user);
+        return notificationRepository.findByReceiverAndReadStatusFalse(user);
 
     }
 
