@@ -13,71 +13,78 @@ import com.example.lstats.repository.friendrequestrepository;
 @Service
 public class friendrequestservice {
 
-    private final friendrequestrepository Friendrequestrepository;
-    private final UserRepository userrepository;
+        private final NotificationService notificationservice;
+        private final friendrequestrepository Friendrequestrepository;
+        private final UserRepository userrepository;
 
-    public friendrequestservice(friendrequestrepository f, UserRepository u) {
-        this.Friendrequestrepository = f;
-        this.userrepository = u;
+        public friendrequestservice(friendrequestrepository f, UserRepository u, NotificationService n) {
+                this.Friendrequestrepository = f;
+                this.userrepository = u;
+                this.notificationservice = n;
 
-    }
-
-    public friendmodel sendreq(Long senderid, Long recieverid) {
-        User sender = userrepository.findById(senderid)
-                .orElseThrow(() -> new RuntimeException("Sender not found."));
-        User reciever = userrepository.findById(recieverid)
-                .orElseThrow(() -> new RuntimeException("Receiver not found."));
-
-        if (Friendrequestrepository.findBySenderAndReceiver(sender, reciever).isPresent()) {
-            throw new RuntimeException("Request alread sent");
         }
-        friendmodel req = new friendmodel();
-        req.setSender(sender);
-        req.setReceiver(reciever);
-        return Friendrequestrepository.save(req);
 
-    }
+        public friendmodel sendreq(Long senderid, Long recieverid) {
+                User sender = userrepository.findById(senderid)
+                                .orElseThrow(() -> new RuntimeException("Sender not found."));
+                User reciever = userrepository.findById(recieverid)
+                                .orElseThrow(() -> new RuntimeException("Receiver not found."));
 
-    public friendmodel acceptreq(Long reqid) {
-        friendmodel req = Friendrequestrepository.findById(reqid)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-        req.setStatus(friendmodel.Status.ACCEPTED);
-        return Friendrequestrepository.save(req);
-    }
+                if (Friendrequestrepository.findBySenderAndReceiver(sender, reciever).isPresent()) {
+                        throw new RuntimeException("Request alread sent");
+                }
+                friendmodel req = new friendmodel();
+                req.setSender(sender);
+                req.setReceiver(reciever);
+                notificationservice.createNotification(
+                                reciever.getUsername(),
+                                sender.getUsername() + " sent you a friend request");
+                return Friendrequestrepository.save(req);
 
-    public friendmodel rejectreq(Long acceptid) {
-        friendmodel req = Friendrequestrepository.findById(acceptid)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-        req.setStatus(friendmodel.Status.REJECTED);
-        return Friendrequestrepository.save(req);
-    }
+        }
 
-    public List<friendmodel> getpendingreq(Long userid) {
-        User user = userrepository.findById(userid).orElseThrow(() -> 
-        new RuntimeException("No such user found."));
-        return Friendrequestrepository.findByReceiver(user).stream()
-                .filter(r -> r.getStatus() == friendmodel.Status.PENDING).toList();
-    }
+        public friendmodel acceptreq(Long reqid) {
+                friendmodel req = Friendrequestrepository.findById(reqid)
+                                .orElseThrow(() -> new RuntimeException("Request not found"));
+                req.setStatus(friendmodel.Status.ACCEPTED);
+                notificationservice.createNotification(
+                                req.getSender().getUsername(),
+                                req.getReceiver().getUsername() + " accepted your friend request");
+                return Friendrequestrepository.save(req);
+        }
 
-    public List<User> getFriends(Long userid) {
-    User user = userrepository.findById(userid)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+        public friendmodel rejectreq(Long acceptid) {
+                friendmodel req = Friendrequestrepository.findById(acceptid)
+                                .orElseThrow(() -> new RuntimeException("Request not found"));
+                req.setStatus(friendmodel.Status.REJECTED);
+                return Friendrequestrepository.save(req);
+        }
 
-    
-    List<User> sentFriends = Friendrequestrepository.findBySender(user).stream()
-            .filter(f -> f.getStatus() == friendmodel.Status.ACCEPTED)
-            .map(friendmodel::getReceiver)
-            .toList();
+        public List<friendmodel> getpendingreq(Long userid) {
+                User user = userrepository.findById(userid)
+                                .orElseThrow(() -> new RuntimeException("No such user found."));
+                return Friendrequestrepository.findByReceiver(user).stream()
+                                .filter(r -> r.getStatus() == friendmodel.Status.PENDING).toList();
+        }
 
-    List<User> receivedFriends = Friendrequestrepository.findByReceiver(user).stream()
-            .filter(f -> f.getStatus() == friendmodel.Status.ACCEPTED)
-            .map(friendmodel::getSender)
-            .toList();
+        public List<User> getFriends(Long userid) {
+                User user = userrepository.findById(userid)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-    List<User> allFriends = new ArrayList<>();
-    allFriends.addAll(sentFriends);
-    allFriends.addAll(receivedFriends);
+                List<User> sentFriends = Friendrequestrepository.findBySender(user).stream()
+                                .filter(f -> f.getStatus() == friendmodel.Status.ACCEPTED)
+                                .map(friendmodel::getReceiver)
+                                .toList();
 
-    return allFriends;
-}}
+                List<User> receivedFriends = Friendrequestrepository.findByReceiver(user).stream()
+                                .filter(f -> f.getStatus() == friendmodel.Status.ACCEPTED)
+                                .map(friendmodel::getSender)
+                                .toList();
 
+                List<User> allFriends = new ArrayList<>();
+                allFriends.addAll(sentFriends);
+                allFriends.addAll(receivedFriends);
+
+                return allFriends;
+        }
+}

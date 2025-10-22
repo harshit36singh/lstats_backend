@@ -16,13 +16,15 @@ import com.example.lstats.repository.UserRepository;
 @Service
 public class GroupService {
 
+    private final NotificationService notificationservice;
     private final GroupRepo grouprep;
     private final UserRepository userrepo;
     private final GroupinviteRepo inviterepo;
 
-    public GroupService(GroupRepo grouprep, UserRepository userrepo, GroupinviteRepo inviterepo) {
+    public GroupService(GroupRepo grouprep, UserRepository userrepo, GroupinviteRepo inviterepo,NotificationService notificationservice) {
         this.grouprep = grouprep;
         this.userrepo = userrepo;
+        this.notificationservice=notificationservice;
         this.inviterepo = inviterepo;
     }
 
@@ -59,6 +61,7 @@ public class GroupService {
         invite.setSender(sender);
         invite.setReceiver(receiver);
         invite.setStatus(GroupInvite.InviteStatus.PENDING);
+        notificationservice.createNotification(receiverid, "You got a new group invite from"+senderid+"for group"+group.getName());
         return inviterepo.save(invite);
     }
 
@@ -78,4 +81,6 @@ public class GroupService {
         User user=userrepo.findByUsername(name).orElseThrow(()->new RuntimeException("Cant find user"));
         return inviterepo.findByReceiverAndStatus(user, GroupInvite.InviteStatus.PENDING);
     }
+
+
 }
