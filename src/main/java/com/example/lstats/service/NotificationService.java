@@ -2,11 +2,14 @@ package com.example.lstats.service;
 
 import java.util.List;
 
+import org.springframework.stereotype.Service;
+
 import com.example.lstats.model.Notification;
 import com.example.lstats.model.User;
 import com.example.lstats.repository.NotificationRepository;
 import com.example.lstats.repository.UserRepository;
 
+@Service
 public class NotificationService {
     private final NotificationRepository notificationRepository;
     private UserRepository userRepository;
