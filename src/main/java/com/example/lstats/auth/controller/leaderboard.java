@@ -80,15 +80,17 @@ private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
     return null;
 }
 
-// 🔁 Refresh every hour
 @Scheduled(fixedRate = 3600000)
 @CacheEvict(value = {"globalLeaderboard", "collegeLeaderboard"}, allEntries = true)
 void refreshleaderboard() {
     List<User> users = userRepository.findAll();
+    Map<String, Leader> newData = new HashMap<>();
+
     for (User user : users) {
         try {
             String url = "https://lstats.onrender.com/leetcode/" + user.getUsername();
-            Map<String, Object> res = fetchWithRetry(url, 6);
+            Map<String, Object> res = fetchWithRetry(url, 3);
+
             if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
                     && res.containsKey("hardSolved") && res.containsKey("profilePic")) {
 
@@ -98,17 +100,31 @@ void refreshleaderboard() {
                 String image = (String) res.get("profilePic");
 
                 Leader leader = new Leader(ea, me, ha, image, user.getCollegename());
-                leadercache.put(user.getUsername(), leader);
-                hashOps.put(CACHE_KEY, user.getUsername(), leader);
+                newData.put(user.getUsername(), leader);
             } else {
-                System.out.println("⚠️ Failed to fetch valid data for " + user.getUsername());
+                System.out.println("⚠️ Invalid data for " + user.getUsername());
             }
+
         } catch (Exception e) {
-            System.out.println("Error fetching for : " + user.getUsername());
+            System.out.println("❌ Error fetching for " + user.getUsername() + ": " + e.getMessage());
         }
     }
-    System.out.println("Leaderboard refreshed and saved to Redis ✅");
+
+    if (newData.size() == users.size()) {
+        leadercache.clear();
+        leadercache.putAll(newData);
+
+        // Clear Redis first
+        redisTemplate.delete(CACHE_KEY);
+
+        // Repopulate Redis
+        hashOps.putAll(CACHE_KEY, newData);
+        System.out.println("✅ Leaderboard fully refreshed and saved to Redis (" + users.size() + " users)");
+    } else {
+        System.out.println("⚠️ Partial refresh skipped — got " + newData.size() + "/" + users.size() + " users");
+    }
 }
+
 
 @GetMapping("/refresh")
 @CacheEvict(value = {"globalLeaderboard", "collegeLeaderboard"}, allEntries = true)
