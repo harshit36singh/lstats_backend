@@ -40,6 +40,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req){
         AuthResponse res=authService.login(req);
+        leaderboard.updateUserLeaderboard(req.getUsername());
         return ResponseEntity.ok(res);
     }
    @GetMapping("/collges")
