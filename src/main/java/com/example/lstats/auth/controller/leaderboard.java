@@ -15,9 +15,13 @@ import org.springframework.web.client.RestTemplate;
 
 import com.example.lstats.model.User;
 import com.example.lstats.repository.UserRepository;
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 
 import jakarta.annotation.PostConstruct;
 
+
+@JsonAutoDetect(fieldVisibility = Visibility.ANY)
 class Leader {
     int totalSolved;
     String img;
