@@ -1,7 +1,7 @@
 package com.example.lstats.auth.controller;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -41,7 +41,6 @@ class Leader {
     int gettotalsolved() {
         return e + m + h;
     }
-
 }
 
 @RestController
@@ -59,109 +58,44 @@ public class leaderboard {
     private final RestTemplate restTemplate = new RestTemplate();
     private static final String CACHE_KEY = "leaderboard";
     private final Map<String, Leader> leadercache = new ConcurrentHashMap<>();
-    
-    // Rate limiting variables
-    private static final long MIN_REQUEST_INTERVAL = 20000; // 20 seconds between requests
-    private static final long COLD_START_WAIT = 180000; // 3 minutes for cold start
-    private long lastRequestTime = 0;
-    private int consecutiveRateLimitHits = 0;
-    private static final int BATCH_SIZE = 3; // Process 3 users before taking a break
-    private static final long BATCH_PAUSE = 45000; // 45 seconds pause after each batch
-    private boolean serviceWarmupDone = false;
+
+    // Configurable constants
+    private static final int MAX_RETRIES = 3;
+    private static final int BASE_WAIT_MS = 5000;
+    private static final int BATCH_SIZE = 10;
+
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     @PostConstruct
     public void init() {
         hashOps = redisTemplate.opsForHash();
+        // Schedule rolling refresh every 10 minutes
+        scheduler.scheduleAtFixedRate(this::refreshBatch, 0, 10, TimeUnit.MINUTES);
+        // Keep-alive ping every 9 minutes
+        scheduler.scheduleAtFixedRate(this::keepAlivePing, 0, 9, TimeUnit.MINUTES);
     }
 
-    private boolean warmupService() {
-        System.out.println("🔥 Attempting to warm up lstats.onrender.com service (this may take 2-3 minutes)...");
-        
-        // Try to ping the service with a simple request
-        for (int i = 0; i < 5; i++) {
-            try {
-                String testUrl = "https://lstats.onrender.com/";
-                restTemplate.getForObject(testUrl, String.class);
-                System.out.println("✓ Service warmup successful!");
-                return true;
-            } catch (Exception e) {
-                System.out.println("Warmup attempt " + (i + 1) + "/5 - waiting 30s...");
-                try {
-                    Thread.sleep(30000); // Wait 30 seconds between warmup attempts
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
-            }
+    private void keepAlivePing() {
+        try {
+            restTemplate.getForObject("https://lstats.onrender.com/health", String.class);
+            System.out.println("Keep-alive ping sent to lstats.onrender.com");
+        } catch (Exception e) {
+            System.out.println("Keep-alive ping failed: " + e.getMessage());
         }
-        
-        System.out.println("⚠ Service may still be cold, proceeding with caution...");
-        return false;
-    }
-
-    private synchronized Map<String, Object> fetchWithRateLimit(String url, int maxRetries) {
-        // Ensure minimum time between requests
-        long currentTime = System.currentTimeMillis();
-        long timeSinceLastRequest = currentTime - lastRequestTime;
-        
-        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-            try {
-                long sleepTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-                System.out.println("⏱ Rate limiting: waiting " + (sleepTime / 1000) + "s before next request...");
-                Thread.sleep(sleepTime);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        
-        Map<String, Object> result = fetchWithRetry(url, maxRetries);
-        lastRequestTime = System.currentTimeMillis();
-        return result;
     }
 
     private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
+        Random random = new Random();
         for (int i = 0; i < maxRetries; i++) {
             try {
-                Map<String, Object> result = restTemplate.getForObject(url, Map.class);
-                consecutiveRateLimitHits = 0; // Reset on success
-                return result;
-            } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
-                consecutiveRateLimitHits++;
-                
-                // If this is the first request and we get 429, the service is likely cold
-                if (!serviceWarmupDone && i == 0) {
-                    System.out.println("⚠ Service appears to be spun down (cold start). Waiting " + (COLD_START_WAIT / 1000) + "s for warmup...");
-                    try {
-                        Thread.sleep(COLD_START_WAIT);
-                        serviceWarmupDone = true;
-                        continue; // Retry immediately after cold start wait
-                    } catch (InterruptedException ignored) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-                
-                // Progressive backoff for subsequent retries
-                int waitTime = Math.min(120000, (i + 1) * 20000 + (consecutiveRateLimitHits * 15000));
-                System.out.println("429 Too Many Requests for " + url + ", waiting " + (waitTime / 1000) + "s before retry...");
-                System.out.println("Consecutive rate limit hits: " + consecutiveRateLimitHits);
-                
+                return restTemplate.getForObject(url, Map.class);
+            } catch (Exception e) {
+                int waitTime = BASE_WAIT_MS * (i + 1) + random.nextInt(2000);
+                System.out.println((e.getMessage().contains("429") ? "429 Too Many Requests" : "Error") +
+                        " for " + url + ", waiting " + waitTime / 1000 + "s before retry...");
                 try {
                     Thread.sleep(waitTime);
                 } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-            } catch (org.springframework.web.client.HttpServerErrorException e) {
-                System.out.println("⚠ Server error (likely still spinning up): " + e.getStatusCode() + " - waiting 60s...");
-                try {
-                    Thread.sleep(60000);
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-            } catch (Exception e) {
-                System.out.println("Attempt " + (i + 1) + " failed for " + url + " -> " + e.getMessage());
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
                 }
             }
         }
@@ -169,41 +103,15 @@ public class leaderboard {
     }
 
     @Scheduled(fixedRate = 3600000)
-    @CacheEvict(value = { "globalLeaderboard", "collegeLeaderboard" }, allEntries = true)
+    @CacheEvict(value = {"globalLeaderboard", "collegeLeaderboard"}, allEntries = true)
     void refreshleaderboard() {
         List<User> users = userRepository.findAll();
         Map<String, Leader> newData = new HashMap<>();
-        
-        System.out.println("═══════════════════════════════════════════════════════");
-        System.out.println("Starting leaderboard refresh for " + users.size() + " users...");
-        System.out.println("═══════════════════════════════════════════════════════");
-        
-        // Warm up the service first
-        if (!serviceWarmupDone) {
-            warmupService();
-            serviceWarmupDone = true;
-            
-            // Additional wait after warmup
-            System.out.println("⏱ Waiting additional 30s to ensure service is fully ready...");
-            try {
-                Thread.sleep(30000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        
-        long startTime = System.currentTimeMillis();
-        int successCount = 0;
-        int failCount = 0;
 
-        for (int i = 0; i < users.size(); i++) {
-            User user = users.get(i);
-            
+        for (User user : users) {
             try {
                 String url = "https://lstats.onrender.com/leetcode/" + user.getUsername();
-                System.out.println("\n[" + (i + 1) + "/" + users.size() + "] Fetching: " + user.getUsername());
-                
-                Map<String, Object> res = fetchWithRateLimit(url, 4); // Increased to 4 retries
+                Map<String, Object> res = fetchWithRetry(url, MAX_RETRIES);
 
                 if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
                         && res.containsKey("hardSolved") && res.containsKey("profilePic")) {
@@ -215,70 +123,43 @@ public class leaderboard {
 
                     Leader leader = new Leader(ea, me, ha, image, user.getCollegename());
                     newData.put(user.getUsername(), leader);
-                    successCount++;
-                    System.out.println("✓ Success! E:" + ea + " M:" + me + " H:" + ha);
                 } else {
-                    failCount++;
-                    System.out.println("✗ Invalid/Empty response for " + user.getUsername());
+                    System.out.println("Invalid data for " + user.getUsername());
                 }
-                
-                // Extra pause after each batch
-                if ((i + 1) % BATCH_SIZE == 0 && i < users.size() - 1) {
-                    long elapsed = (System.currentTimeMillis() - startTime) / 1000;
-                    System.out.println("\n═══ Batch " + ((i + 1) / BATCH_SIZE) + " complete (" + (i + 1) + "/" + users.size() + " users) ═══");
-                    System.out.println("    Success: " + successCount + " | Failed: " + failCount + " | Time: " + elapsed + "s");
-                    System.out.println("    Pausing for " + (BATCH_PAUSE / 1000) + " seconds...\n");
-                    Thread.sleep(BATCH_PAUSE);
-                }
-                
+
             } catch (Exception e) {
-                failCount++;
-                System.out.println("✗ Error fetching for " + user.getUsername() + ": " + e.getMessage());
+                System.out.println(" Error fetching for " + user.getUsername() + ": " + e.getMessage());
             }
         }
 
-        long endTime = System.currentTimeMillis();
-        long duration = (endTime - startTime) / 1000;
-        
-        System.out.println("\n═══════════════════════════════════════════════════════");
-        System.out.println("Refresh completed in " + (duration / 60) + "m " + (duration % 60) + "s");
-        System.out.println("Results: " + successCount + " successful, " + failCount + " failed");
-        System.out.println("═══════════════════════════════════════════════════════\n");
-
-        // Accept partial data if we got at least 50% of users
-        double successRate = (double) newData.size() / users.size();
-        if (newData.size() == users.size()) {
-            leadercache.clear();
+        if (!newData.isEmpty()) {
             leadercache.putAll(newData);
-            redisTemplate.delete(CACHE_KEY);
             hashOps.putAll(CACHE_KEY, newData);
-            System.out.println("✓ Leaderboard FULLY refreshed and saved to Redis (" + users.size() + " users)");
-        } else if (successRate >= 0.5) {
-            // Merge with existing data instead of replacing
-            Map<String, Leader> existingData = new HashMap<>(leadercache);
-            existingData.putAll(newData);
-            leadercache.clear();
-            leadercache.putAll(existingData);
-            
-            hashOps.putAll(CACHE_KEY, newData); // Update only new entries
-            System.out.println("⚠ PARTIAL refresh saved (" + newData.size() + "/" + users.size() + " users updated)");
-        } else {
-            System.out.println("✗ Refresh FAILED - only got " + newData.size() + "/" + users.size() + " users (" + (int)(successRate * 100) + "%)");
-            System.out.println("⚠ Keeping old data. Try again later or check API status.");
+            System.out.println(" Leaderboard updated for " + newData.size() + " users");
+        }
+    }
+
+    private void refreshBatch() {
+        List<User> users = userRepository.findAll();
+        if (users.isEmpty()) return;
+
+        int startIndex = (int) (System.currentTimeMillis() / (10 * 60 * 1000)) % (users.size() / BATCH_SIZE + 1);
+        int from = startIndex * BATCH_SIZE;
+        int to = Math.min(users.size(), from + BATCH_SIZE);
+
+        List<User> batch = users.subList(from, to);
+        System.out.println("Refreshing leaderboard batch: " + from + " - " + to);
+
+        for (User user : batch) {
+            updateUserLeaderboard(user.getUsername());
         }
     }
 
     @GetMapping("/refresh")
-    @CacheEvict(value = { "globalLeaderboard", "collegeLeaderboard" }, allEntries = true)
-    public ResponseEntity<Map<String, String>> manualRefresh() {
-        new Thread(() -> refreshleaderboard()).start();
-        
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "started");
-        response.put("message", "Leaderboard refresh running in background. This may take 5-10 minutes.");
-        response.put("note", "Check server logs for progress updates.");
-        
-        return ResponseEntity.ok(response);
+    @CacheEvict(value = {"globalLeaderboard", "collegeLeaderboard"}, allEntries = true)
+    public ResponseEntity<String> manualRefresh() {
+        scheduler.submit(this::refreshleaderboard);
+        return ResponseEntity.ok("Leaderboard refresh triggered");
     }
 
     @GetMapping("/global")
@@ -353,7 +234,7 @@ public class leaderboard {
             }
 
             String url = "https://lstats.onrender.com/leetcode/" + username;
-            Map<String, Object> res = fetchWithRateLimit(url, 4);
+            Map<String, Object> res = fetchWithRetry(url, MAX_RETRIES);
 
             if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
                     && res.containsKey("hardSolved") && res.containsKey("profilePic")) {
@@ -368,12 +249,11 @@ public class leaderboard {
                 leadercache.put(username, leader);
                 hashOps.put(CACHE_KEY, username, leader);
 
-                System.out.println("✓ Leaderboard updated for user: " + username);
+                System.out.println(" Leaderboard updated for user: " + username);
             }
 
         } catch (Exception e) {
-            System.out.println("✗ Error updating leaderboard for " + username + ": " + e.getMessage());
+            System.out.println("Error updating leaderboard for " + username + ": " + e.getMessage());
         }
     }
-
 }
