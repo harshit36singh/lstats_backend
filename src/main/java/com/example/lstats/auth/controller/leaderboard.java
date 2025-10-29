@@ -59,44 +59,85 @@ public class leaderboard {
     private final RestTemplate restTemplate = new RestTemplate();
     private static final String CACHE_KEY = "leaderboard";
     private final Map<String, Leader> leadercache = new ConcurrentHashMap<>();
+    
+    // Rate limiting variables
+    private static final long MIN_REQUEST_INTERVAL = 15000; // 15 seconds between requests
+    private long lastRequestTime = 0;
+    private int consecutiveRateLimitHits = 0;
+    private static final int BATCH_SIZE = 5; // Process 5 users before taking a break
+    private static final long BATCH_PAUSE = 30000; // 30 seconds pause after each batch
 
     @PostConstruct
     public void init() {
         hashOps = redisTemplate.opsForHash();
     }
 
-   private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
-    for (int i = 0; i < maxRetries; i++) {
-        try {
-            return restTemplate.getForObject(url, Map.class);
-        } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
-            // Handle 429 Too Many Requests explicitly
-            int waitTime = (i + 1) * 5000; // exponential backoff: 5s, 10s, 15s
-            System.out.println("429 Too Many Requests for " + url + ", waiting " + (waitTime / 1000) + "s before retry...");
+    private synchronized Map<String, Object> fetchWithRateLimit(String url, int maxRetries) {
+        // Ensure minimum time between requests
+        long currentTime = System.currentTimeMillis();
+        long timeSinceLastRequest = currentTime - lastRequestTime;
+        
+        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
             try {
-                Thread.sleep(waitTime);
-            } catch (InterruptedException ignored) {}
-        } catch (Exception e) {
-            System.out.println("Attempt " + (i + 1) + " failed for " + url + " -> " + e.getMessage());
-            try {
-                Thread.sleep(3000); // small wait before next retry
-            } catch (InterruptedException ignored) {}
+                long sleepTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+                System.out.println("Rate limiting: waiting " + (sleepTime / 1000) + "s before next request...");
+                Thread.sleep(sleepTime);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
+        
+        Map<String, Object> result = fetchWithRetry(url, maxRetries);
+        lastRequestTime = System.currentTimeMillis();
+        return result;
     }
-    return null;
-}
 
+    private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
+        for (int i = 0; i < maxRetries; i++) {
+            try {
+                Map<String, Object> result = restTemplate.getForObject(url, Map.class);
+                consecutiveRateLimitHits = 0; // Reset on success
+                return result;
+            } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
+                consecutiveRateLimitHits++;
+                // Progressive backoff: increases with both retry attempt and consecutive hits
+                int waitTime = (i + 1) * 5000 + (consecutiveRateLimitHits * 10000);
+                System.out.println("429 Too Many Requests for " + url + ", waiting " + (waitTime / 1000) + "s before retry...");
+                System.out.println("Consecutive rate limit hits: " + consecutiveRateLimitHits);
+                try {
+                    Thread.sleep(waitTime);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            } catch (Exception e) {
+                System.out.println("Attempt " + (i + 1) + " failed for " + url + " -> " + e.getMessage());
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        return null;
+    }
 
     @Scheduled(fixedRate = 3600000)
     @CacheEvict(value = { "globalLeaderboard", "collegeLeaderboard" }, allEntries = true)
     void refreshleaderboard() {
         List<User> users = userRepository.findAll();
         Map<String, Leader> newData = new HashMap<>();
+        
+        System.out.println("Starting leaderboard refresh for " + users.size() + " users...");
+        long startTime = System.currentTimeMillis();
 
-        for (User user : users) {
+        for (int i = 0; i < users.size(); i++) {
+            User user = users.get(i);
+            
             try {
                 String url = "https://lstats.onrender.com/leetcode/" + user.getUsername();
-                Map<String, Object> res = fetchWithRetry(url, 3);
+                System.out.println("Fetching data for user " + (i + 1) + "/" + users.size() + ": " + user.getUsername());
+                
+                Map<String, Object> res = fetchWithRateLimit(url, 3);
 
                 if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
                         && res.containsKey("hardSolved") && res.containsKey("profilePic")) {
@@ -108,14 +149,27 @@ public class leaderboard {
 
                     Leader leader = new Leader(ea, me, ha, image, user.getCollegename());
                     newData.put(user.getUsername(), leader);
+                    System.out.println("✓ Successfully fetched data for " + user.getUsername());
                 } else {
-                    System.out.println("Invalid data for " + user.getUsername());
+                    System.out.println("✗ Invalid data for " + user.getUsername());
                 }
-                 Thread.sleep(8000); 
+                
+                // Extra pause after each batch
+                if ((i + 1) % BATCH_SIZE == 0 && i < users.size() - 1) {
+                    System.out.println("═══ Batch " + ((i + 1) / BATCH_SIZE) + " complete (" + (i + 1) + "/" + users.size() + " users), pausing for " + (BATCH_PAUSE / 1000) + " seconds... ═══");
+                    Thread.sleep(BATCH_PAUSE);
+                }
+                
             } catch (Exception e) {
-                System.out.println(" Error fetching for " + user.getUsername() + ": " + e.getMessage());
+                System.out.println("✗ Error fetching for " + user.getUsername() + ": " + e.getMessage());
             }
         }
+
+        long endTime = System.currentTimeMillis();
+        long duration = (endTime - startTime) / 1000;
+        
+        System.out.println("Refresh completed in " + duration + " seconds");
+        System.out.println("Successfully fetched: " + newData.size() + "/" + users.size() + " users");
 
         if (newData.size() == users.size()) {
             leadercache.clear();
@@ -124,17 +178,18 @@ public class leaderboard {
             redisTemplate.delete(CACHE_KEY);
 
             hashOps.putAll(CACHE_KEY, newData);
-            System.out.println(" Leaderboard fully refreshed and saved to Redis (" + users.size() + " users)");
+            System.out.println("✓ Leaderboard fully refreshed and saved to Redis (" + users.size() + " users)");
         } else {
-            System.out.println(" Partial refresh skipped — got " + newData.size() + "/" + users.size() + " users");
+            System.out.println("⚠ Partial refresh skipped — got " + newData.size() + "/" + users.size() + " users");
+            System.out.println("⚠ Consider increasing delays or checking API rate limits");
         }
     }
 
     @GetMapping("/refresh")
     @CacheEvict(value = { "globalLeaderboard", "collegeLeaderboard" }, allEntries = true)
     public ResponseEntity<String> manualRefresh() {
-        refreshleaderboard();
-        return ResponseEntity.ok("Leaderboard refresh triggered ");
+        new Thread(() -> refreshleaderboard()).start(); // Run in background to avoid timeout
+        return ResponseEntity.ok("Leaderboard refresh triggered (running in background)");
     }
 
     @GetMapping("/global")
@@ -209,7 +264,7 @@ public class leaderboard {
             }
 
             String url = "https://lstats.onrender.com/leetcode/" + username;
-            Map<String, Object> res = restTemplate.getForObject(url, Map.class);
+            Map<String, Object> res = fetchWithRateLimit(url, 3);
 
             if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
                     && res.containsKey("hardSolved") && res.containsKey("profilePic")) {
@@ -228,7 +283,7 @@ public class leaderboard {
             }
 
         } catch (Exception e) {
-            System.out.println("Error updating leaderboard for " + username + ": " + e.getMessage());
+            System.out.println(" Error updating leaderboard for " + username + ": " + e.getMessage());
         }
     }
 
