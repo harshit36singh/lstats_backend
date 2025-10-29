@@ -20,39 +20,36 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 
 import jakarta.annotation.PostConstruct;
 
-@JsonAutoDetect(fieldVisibility = Visibility.ANY)
-class Leader {
-int totalSolved;
-String img;
-int e;
-int m;
-int h;
-String clgname;
-
-
-Leader(int e, int m, int h, String img, String clgname) {
-    this.e = e;
-    this.m = m;
-    this.h = h;
-    this.img = img;
-    this.clgname = clgname;
-}
-
-int getpoints() {
-    return e * 1 + m * 3 + h * 5;
-}
-
-int gettotalsolved() {
-    return e + m + h;
-}
-
-
-}
-
 @RestController
 @RequestMapping("/leaderboard")
 @CrossOrigin(origins = "*")
 public class leaderboard {
+
+@JsonAutoDetect(fieldVisibility = Visibility.ANY)
+public static class Leader {
+    int totalSolved;
+    String img;
+    int e;
+    int m;
+    int h;
+    String clgname;
+
+    public Leader(int e, int m, int h, String img, String clgname) {
+        this.e = e;
+        this.m = m;
+        this.h = h;
+        this.img = img;
+        this.clgname = clgname;
+    }
+
+    public int getpoints() {
+        return e * 1 + m * 3 + h * 5;
+    }
+
+    public int gettotalsolved() {
+        return e + m + h;
+    }
+}
 
 @Autowired
 private UserRepository userRepository;
@@ -75,11 +72,8 @@ private static final ScheduledExecutorService scheduler = Executors.newScheduled
 @PostConstruct
 public void init() {
     hashOps = redisTemplate.opsForHash();
-    // Schedule rolling refresh every 10 minutes
     scheduler.scheduleAtFixedRate(this::refreshBatch, 0, 10, TimeUnit.MINUTES);
-    // Keep-alive ping every 9 minutes
     scheduler.scheduleAtFixedRate(this::keepAlivePing, 0, 9, TimeUnit.MINUTES);
-    // Initial data load to prevent empty leaderboard
     scheduler.submit(this::refreshleaderboard);
 }
 
@@ -103,8 +97,7 @@ private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
                     " for " + url + ", waiting " + waitTime / 1000 + "s before retry...");
             try {
                 Thread.sleep(waitTime);
-            } catch (InterruptedException ignored) {
-            }
+            } catch (InterruptedException ignored) {}
         }
     }
     return null;
@@ -175,25 +168,26 @@ public ResponseEntity<String> manualRefresh() {
 @Cacheable("globalLeaderboard")
 public List<Map<String, Object>> globalleaberboard() {
     Map<String, Leader> leaders = hashOps.entries(CACHE_KEY);
-
-    if (leaders.isEmpty()) {
+    if (leaders == null || leaders.isEmpty()) {
         leaders = new HashMap<>(leadercache);
     }
 
     List<Map<String, Object>> list = new ArrayList<>();
-    leaders.forEach((username, entry) -> {
+    for (Map.Entry<String, Leader> entry : leaders.entrySet()) {
+        String username = entry.getKey();
+        Leader l = entry.getValue();
         User user = userRepository.findByUsername(username).orElse(null);
         if (user != null) {
             Map<String, Object> e = new HashMap<>();
             e.put("id", user.getId());
             e.put("username", username);
-            e.put("solved", entry.gettotalsolved());
-            e.put("avatar", entry.img);
-            e.put("points", (int) entry.getpoints());
-            e.put("collgename", entry.clgname);
+            e.put("solved", l.gettotalsolved());
+            e.put("avatar", l.img);
+            e.put("points", l.getpoints());
+            e.put("collgename", l.clgname);
             list.add(e);
         }
-    });
+    }
 
     list.sort((a, b) -> ((Integer) b.get("points")) - ((Integer) a.get("points")));
     for (int i = 0; i < list.size(); i++) {
@@ -207,7 +201,7 @@ public List<Map<String, Object>> globalleaberboard() {
 @Cacheable("collegeLeaderboard")
 public List<Map<String, Object>> clgleaderboard() {
     Map<String, Leader> leaders = hashOps.entries(CACHE_KEY);
-    if (leaders.isEmpty()) {
+    if (leaders == null || leaders.isEmpty()) {
         leaders = new HashMap<>(leadercache);
     }
 
