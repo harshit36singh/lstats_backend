@@ -111,7 +111,7 @@ public class leaderboard {
                 } else {
                     System.out.println("Invalid data for " + user.getUsername());
                 }
-                 Thread.sleep(1500); 
+                 Thread.sleep(8000); 
             } catch (Exception e) {
                 System.out.println(" Error fetching for " + user.getUsername() + ": " + e.getMessage());
             }
