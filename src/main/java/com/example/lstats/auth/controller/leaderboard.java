@@ -65,20 +65,27 @@ public class leaderboard {
         hashOps = redisTemplate.opsForHash();
     }
 
-    private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
-        for (int i = 0; i < maxRetries; i++) {
+   private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
+    for (int i = 0; i < maxRetries; i++) {
+        try {
+            return restTemplate.getForObject(url, Map.class);
+        } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
+            // Handle 429 Too Many Requests explicitly
+            int waitTime = (i + 1) * 5000; // exponential backoff: 5s, 10s, 15s
+            System.out.println("429 Too Many Requests for " + url + ", waiting " + (waitTime / 1000) + "s before retry...");
             try {
-                return restTemplate.getForObject(url, Map.class);
-            } catch (Exception e) {
-                System.out.println("Attempt " + (i + 1) + " failed for " + url + " -> " + e.getMessage());
-                try {
-                    Thread.sleep(3000); 
-                } catch (InterruptedException ignored) {
-                }
-            }
+                Thread.sleep(waitTime);
+            } catch (InterruptedException ignored) {}
+        } catch (Exception e) {
+            System.out.println("Attempt " + (i + 1) + " failed for " + url + " -> " + e.getMessage());
+            try {
+                Thread.sleep(3000); // small wait before next retry
+            } catch (InterruptedException ignored) {}
         }
-        return null;
     }
+    return null;
+}
+
 
     @Scheduled(fixedRate = 3600000)
     @CacheEvict(value = { "globalLeaderboard", "collegeLeaderboard" }, allEntries = true)
@@ -104,7 +111,7 @@ public class leaderboard {
                 } else {
                     System.out.println("Invalid data for " + user.getUsername());
                 }
-
+                 Thread.sleep(1500); 
             } catch (Exception e) {
                 System.out.println(" Error fetching for " + user.getUsername() + ": " + e.getMessage());
             }
