@@ -1,252 +1,153 @@
 package com.example.lstats.auth.controller;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.redis.core.HashOperations;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
-
-import com.example.lstats.model.User;
 import com.example.lstats.repository.UserRepository;
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.example.lstats.model.User;
 
-import jakarta.annotation.PostConstruct;
+class Leader {
+    int totalSolved;
+    String img;
+    int e;
+    int m;
+    int h;
+    String clgname;
+
+    Leader(int e, int m, int h, String img, String clgname) {
+        this.e = e;
+        this.m = m;
+        this.h = h;
+        this.img = img;
+        this.clgname = clgname;
+    }
+
+    int getpoints() {
+        return e * 1 + m * 3 + h * 5;
+    }
+
+    int gettotalsolved() {
+        return e + m + h;
+    }
+}
 
 @RestController
 @RequestMapping("/leaderboard")
 @CrossOrigin(origins = "*")
 public class leaderboard {
-
-    @JsonAutoDetect(fieldVisibility = Visibility.ANY)
-    public static class Leader {
-        int totalSolved;
-        String img;
-        int e;
-        int m;
-        int h;
-        String clgname;
-
-        // ✅ Default constructor for Redis/Jackson
-        public Leader() {}
-
-        @JsonCreator
-        public Leader(@JsonProperty("e") int e,
-                      @JsonProperty("m") int m,
-                      @JsonProperty("h") int h,
-                      @JsonProperty("img") String img,
-                      @JsonProperty("clgname") String clgname) {
-            this.e = e;
-            this.m = m;
-            this.h = h;
-            this.img = img;
-            this.clgname = clgname;
-        }
-
-        public int getpoints() {
-            return e * 1 + m * 3 + h * 5;
-        }
-
-        public int gettotalsolved() {
-            return e + m + h;
-        }
-    }
-
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
-
-    private HashOperations<String, String, Leader> hashOps;
     private final RestTemplate restTemplate = new RestTemplate();
-    private static final String CACHE_KEY = "leaderboard";
     private final Map<String, Leader> leadercache = new ConcurrentHashMap<>();
 
-    private static final int MAX_RETRIES = 3;
-    private static final int BASE_WAIT_MS = 5000;
-    private static final int BATCH_SIZE = 10;
-
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-
-    @PostConstruct
-    public void init() {
-        hashOps = redisTemplate.opsForHash();
-        scheduler.scheduleAtFixedRate(this::refreshBatch, 0, 10, TimeUnit.MINUTES);
-        scheduler.scheduleAtFixedRate(this::keepAlivePing, 0, 9, TimeUnit.MINUTES);
-        scheduler.submit(this::refreshleaderboard);
-    }
-
-    private void keepAlivePing() {
-        try {
-            restTemplate.getForObject("https://lstats.onrender.com/health", String.class);
-            System.out.println("Keep-alive ping sent to lstats.onrender.com");
-        } catch (Exception e) {
-            System.out.println("Keep-alive ping failed: " + e.getMessage());
-        }
-    }
-
-    private Map<String, Object> fetchWithRetry(String url, int maxRetries) {
-        Random random = new Random();
-        for (int i = 0; i < maxRetries; i++) {
-            try {
-                return restTemplate.getForObject(url, Map.class);
-            } catch (Exception e) {
-                int waitTime = BASE_WAIT_MS * (i + 1) + random.nextInt(2000);
-                String msg = (e.getMessage() != null && e.getMessage().contains("429"))
-                        ? "429 Too Many Requests"
-                        : "Error";
-                System.out.println(msg + " for " + url + ", waiting " + waitTime / 1000 + "s...");
-                try {
-                    Thread.sleep(waitTime);
-                } catch (InterruptedException ignored) {}
-            }
-        }
-        return null;
-    }
-
-    @Scheduled(fixedRate = 3600000)
-    @CacheEvict(value = {"globalLeaderboard", "collegeLeaderboard"}, allEntries = true)
-    void refreshleaderboard() {
+    @Scheduled(fixedRate = 3600000) void refreshleaderboard() {
         List<User> users = userRepository.findAll();
-        Map<String, Leader> newData = new HashMap<>();
-
         for (User user : users) {
             try {
                 String url = "https://lstats.onrender.com/leetcode/" + user.getUsername();
-                Map<String, Object> res = fetchWithRetry(url, MAX_RETRIES);
+                Map<String, Object> res = restTemplate.getForObject(url, Map.class);
+                if (res != null && res.containsKey("easySolved") && res.containsKey("mediumSolved")
+                        && res.containsKey("hardSolved") && res.containsKey("profilePic")) {
+                    Object e = res.get("easySolved");
+                    Object m = res.get("mediumSolved");
+                    Object h = res.get("hardSolved");
+                    Object im = res.get("profilePic");
+                    int ea = (e instanceof Number) ? ((Number) e).intValue() : Integer.parseInt(e.toString());
+                    int me = (m instanceof Number) ? ((Number) m).intValue() : Integer.parseInt(m.toString());
+                    int ha = (h instanceof Number) ? ((Number) h).intValue() : Integer.parseInt(h.toString());
+                    String image = (im instanceof String) ? ((String) im) : "";
+                    leadercache.put(user.getUsername(), new Leader(ea, me, ha, image, user.getCollegename()));
 
-                if (res != null && res.containsKey("easySolved") &&
-                    res.containsKey("mediumSolved") &&
-                    res.containsKey("hardSolved") &&
-                    res.containsKey("profilePic")) {
-
-                    int ea = ((Number) res.get("easySolved")).intValue();
-                    int me = ((Number) res.get("mediumSolved")).intValue();
-                    int ha = ((Number) res.get("hardSolved")).intValue();
-                    String image = (String) res.get("profilePic");
-
-                    Leader leader = new Leader(ea, me, ha, image, user.getCollegename());
-                    newData.put(user.getUsername(), leader);
-                } else {
-                    System.out.println("Invalid data for " + user.getUsername());
                 }
             } catch (Exception e) {
-                System.out.println("Error fetching for " + user.getUsername() + ": " + e.getMessage());
+                System.out.println("Error fetching for : " + user.getUsername());
             }
         }
 
-        if (!newData.isEmpty()) {
-            leadercache.putAll(newData);
-            hashOps.putAll(CACHE_KEY, newData);
-            System.out.println("Leaderboard updated for " + newData.size() + " users");
-        }
-    }
-
-    private void refreshBatch() {
-        List<User> users = userRepository.findAll();
-        if (users.isEmpty()) return;
-
-        int totalBatches = Math.max(1, (users.size() + BATCH_SIZE - 1) / BATCH_SIZE);
-        int startIndex = (int) (System.currentTimeMillis() / (10 * 60 * 1000)) % totalBatches;
-        int from = startIndex * BATCH_SIZE;
-        int to = Math.min(users.size(), from + BATCH_SIZE);
-
-        List<User> batch = users.subList(from, to);
-        System.out.println("Refreshing leaderboard batch: " + from + " - " + to);
-
-        for (User user : batch) {
-            updateUserLeaderboard(user.getUsername());
-        }
     }
 
     @GetMapping("/refresh")
-    @CacheEvict(value = {"globalLeaderboard", "collegeLeaderboard"}, allEntries = true)
     public ResponseEntity<String> manualRefresh() {
-        scheduler.submit(this::refreshleaderboard);
-        return ResponseEntity.ok("Leaderboard refresh triggered");
+        refreshleaderboard();
+        return ResponseEntity.ok("Refresh triggered");
     }
 
     @GetMapping("/global")
-    @Cacheable("globalLeaderboard")
-    public List<Map<String, Object>> globalleaberboard() {
-        Map<String, Leader> leaders;
-        try {
-            leaders = hashOps.entries(CACHE_KEY);
-        } catch (Exception e) {
-            System.out.println("Redis read failed, using local cache: " + e.getMessage());
-            leaders = new HashMap<>(leadercache);
-        }
-
-        if (leaders == null || leaders.isEmpty()) {
-            leaders = new HashMap<>(leadercache);
-        }
-
+    public List<Map<String, Object>> globalleaberboard(@RequestParam(required = false) String collegename) {
         List<Map<String, Object>> list = new ArrayList<>();
-        for (Map.Entry<String, Leader> entry : leaders.entrySet()) {
-            String username = entry.getKey();
-            Leader l = entry.getValue();
-            User user = userRepository.findByUsername(username).orElse(null);
-            if (user != null) {
-                Map<String, Object> e = new HashMap<>();
-                e.put("id", user.getId());
-                e.put("username", username);
-                e.put("solved", l.gettotalsolved());
-                e.put("avatar", l.img);
-                e.put("points", l.getpoints());
-                e.put("clgname", l.clgname);
-                list.add(e);
-            }
-        }
-
+        
+        leadercache.forEach((username, entry) -> {
+            User user=userRepository.findByUsername(username).orElse(null);
+            Map<String, Object> e = new HashMap<>();
+            e.put("id", user.getId());
+            e.put("username", username);
+            e.put("solved", entry.gettotalsolved());
+            e.put("avatar", entry.img != null ? entry.img : "");
+            e.put("points", entry.getpoints());
+            e.put("collgename", entry.clgname);
+            list.add(e);
+        });
         list.sort((a, b) -> ((Integer) b.get("points")) - ((Integer) a.get("points")));
         for (int i = 0; i < list.size(); i++) {
             list.get(i).put("rank", i + 1);
         }
-
         return list;
+
     }
 
     @GetMapping("/colleges")
-    @Cacheable("collegeLeaderboard")
     public List<Map<String, Object>> clgleaderboard() {
-        Map<String, Leader> leaders;
-        try {
-            leaders = hashOps.entries(CACHE_KEY);
-        } catch (Exception e) {
-            System.out.println("Redis read failed, using local cache: " + e.getMessage());
-            leaders = new HashMap<>(leadercache);
-        }
-
-        if (leaders == null || leaders.isEmpty()) {
-            leaders = new HashMap<>(leadercache);
-        }
-
         Map<String, Integer> collegpoints = new HashMap<>();
-        leaders.forEach((username, entry) -> {
+        leadercache.forEach((username, entry) -> {
             if (entry.clgname != null && !entry.clgname.isEmpty()) {
                 collegpoints.merge(entry.clgname, entry.getpoints(), Integer::sum);
             }
         });
-
         List<Map<String, Object>> list = new ArrayList<>();
         collegpoints.forEach((college, points) -> {
             Map<String, Object> e = new HashMap<>();
             e.put("college", college);
             e.put("points", points);
             list.add(e);
-        });
 
-        list.sort((a, b) -> ((Integer) b.get("points")) - ((Integer) a.get("points")));
+        });
+        list.sort((a, b) -> ((Integer) b.get("points") - (Integer) a.get("points")));
+        for (int i = 0; i < list.size(); i++) {
+            list.get(i).put("rank", i + 1);
+        }
+        return list;
+    }
+
+    @GetMapping("/college")
+    public List<Map<String, Object>> getstudentbycollege(@RequestParam String college) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        leadercache.forEach((username, e) -> {
+            if (e.clgname != null && e.clgname.equalsIgnoreCase(college)) {
+                Map<String, Object> et = new HashMap<>();
+                et.put("username", username);
+                et.put("solved", e.gettotalsolved());
+                et.put("avatar", e.img != null ? e.img : "");
+                et.put("points", e.getpoints());
+                et.put("collgename", e.clgname);
+                list.add(et);
+            }
+
+        });
+        list.sort((a, b) -> (Integer) b.get("points") - (Integer) a.get("points"));
+
         for (int i = 0; i < list.size(); i++) {
             list.get(i).put("rank", i + 1);
         }
@@ -254,36 +155,8 @@ public class leaderboard {
         return list;
     }
 
-    public void updateUserLeaderboard(String username) {
-        try {
-            User user = userRepository.findByUsername(username).orElse(null);
-            if (user == null) {
-                System.out.println("No user found with username: " + username);
-                return;
-            }
 
-            String url = "https://lstats.onrender.com/leetcode/" + username;
-            Map<String, Object> res = fetchWithRetry(url, MAX_RETRIES);
 
-            if (res != null && res.containsKey("easySolved") &&
-                res.containsKey("mediumSolved") &&
-                res.containsKey("hardSolved") &&
-                res.containsKey("profilePic")) {
+    
 
-                int ea = ((Number) res.get("easySolved")).intValue();
-                int me = ((Number) res.get("mediumSolved")).intValue();
-                int ha = ((Number) res.get("hardSolved")).intValue();
-                String image = (String) res.get("profilePic");
-
-                Leader leader = new Leader(ea, me, ha, image, user.getCollegename());
-                leadercache.put(username, leader);
-                hashOps.put(CACHE_KEY, username, leader);
-
-                System.out.println("Leaderboard updated for user: " + username);
-            }
-
-        } catch (Exception e) {
-            System.out.println("Error updating leaderboard for " + username + ": " + e.getMessage());
-        }
-    }
 }

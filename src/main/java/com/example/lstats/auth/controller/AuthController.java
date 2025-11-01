@@ -10,8 +10,6 @@ import com.example.lstats.auth.dto.RegisterRequest;
 import com.example.lstats.service.collegename;
 import jakarta.validation.Valid;
 import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,15 +22,12 @@ import com.example.lstats.auth.controller.leaderboard;
 
 public class AuthController {
 
-private leaderboard leaderboardService;
-
     
     private final AuthService authService;
     private final collegename collegename;
-     public AuthController(AuthService authService,collegename collegename,leaderboard leaderboardService){
+     public AuthController(AuthService authService,collegename collegename){
         this.authService=authService;
         this.collegename=collegename;
-        this.leaderboardService=leaderboardService;
     }
     
     @PostMapping("/register")
@@ -45,7 +40,6 @@ private leaderboard leaderboardService;
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req){
         AuthResponse res=authService.login(req);
-        leaderboardService.updateUserLeaderboard(req.getUsername());
         return ResponseEntity.ok(res);
     }
    @GetMapping("/collges")
